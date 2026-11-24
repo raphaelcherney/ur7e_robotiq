@@ -8,13 +8,15 @@ Control program has been played, so the gripper can't be activated at launch.
 - The gripper hardware starts "inactive" (config/controller_manager_real_gripper.yaml): its serial
   port, i.e. the connection to the forwarder, is opened at launch.
 - Each time the program starts, this node waits a moment, then activates the gripper hardware
-  (first time only, followed by one explicit gripper re-activation) and any gripper controllers
-  that aren't active.
+  (first time only; re-activated once more if that activation looks incomplete) and any gripper
+  controllers that aren't active.
 - In headless mode, if that first activation stops the robot program, the program is resent
   automatically (with the pendant workflow you press play again instead).
 - It never switches anything off: the robot keeps the tool powered when the program stops, and
   ur_robot_driver's controller_stopper pauses the gripper controllers together with the arm's.
 """
+
+import time
 
 import rclpy
 from controller_manager_msgs.srv import (
@@ -58,6 +60,7 @@ class GripperBringup(Node):
         self.resend_timer = None
         self.program_running = False
         self.needs_reactivation = False
+        self.activation_start = 0.0
         self.timer = None
         qos = QoSProfile(
             depth=1,
@@ -93,11 +96,17 @@ class GripperBringup(Node):
         req = SetHardwareComponentState.Request()
         req.name = HARDWARE
         req.target_state = State(id=State.PRIMARY_STATE_ACTIVE, label="active")
+        self.activation_start = time.monotonic()
         self.call(self.set_hw, req, self.after_set_hw)
 
     def after_set_hw(self, res):
-        self.needs_reactivation = res is not None and res.ok
-        if self.headless and self.needs_reactivation and self.resend_timer is None:
+        ok = res is not None and res.ok
+        # A real activation stroke takes ~2 s. After the gripper has been powered off (e.g. robot
+        # reboot), robotiq_driver's activation can instead "succeed" almost instantly without the
+        # gripper really being activated; it then ignores commands. Only in that case, trigger
+        # one explicit re-activation (fingers open/close).
+        self.needs_reactivation = ok and time.monotonic() - self.activation_start < 0.5
+        if self.headless and ok and self.resend_timer is None:
             # Activating the gripper hardware blocks ros2_control for ~2 s, which makes the
             # robot's control script time out and exit. Restart it if that happened.
             self.resend_timer = self.create_timer(1.0, self.resend_if_stopped)
@@ -118,7 +127,7 @@ class GripperBringup(Node):
             return
         inactive = [c.name for c in res.controller if c.name in CONTROLLERS and c.state != "active"]
         if not inactive:
-            self.reactivate_once()
+            self.finish(changed=False)
             return
         req = SwitchController.Request()
         req.activate_controllers = inactive
@@ -127,7 +136,7 @@ class GripperBringup(Node):
 
     def after_switch(self, res):
         if res is not None and res.ok:
-            self.reactivate_once()
+            self.finish(changed=True)
         else:
             self.get_logger().error("Could not activate the gripper controllers.")
 
@@ -146,15 +155,13 @@ class GripperBringup(Node):
                 "Could not resend the robot program. Is the robot in Remote Control mode?"
             )
 
-    def reactivate_once(self):
-        # After the gripper has been powered off (e.g. robot reboot), robotiq_driver's own
-        # activation can report success without the gripper really being activated; it then
-        # ignores commands. One explicit re-activation (fingers open/close) fixes that.
-        if not self.needs_reactivation:
+    def finish(self, changed):
+        if self.needs_reactivation:
+            self.needs_reactivation = False
+            self.get_logger().info("Gripper activation looked incomplete: re-activating it.")
+            self.call(self.reactivate, Trigger.Request(), self.after_reactivate)
+        elif changed:
             self.get_logger().info("Gripper ready.")
-            return
-        self.needs_reactivation = False
-        self.call(self.reactivate, Trigger.Request(), self.after_reactivate)
 
     def after_reactivate(self, res):
         if res is not None and res.success:
