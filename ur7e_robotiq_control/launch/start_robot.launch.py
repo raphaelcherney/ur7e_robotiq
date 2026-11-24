@@ -6,6 +6,9 @@ Simulated (no robot needed):
 Real robot (robot_serial is on the arm's label and selects its calibration):
     ros2 launch ur7e_robotiq_control start_robot.launch.py robot_serial:=20265702158
 
+Real robot without the pendant program (robot in Remote Control mode):
+    ros2 launch ur7e_robotiq_control start_robot.launch.py robot_serial:=20265702158 headless_mode:=true
+
 This wraps ur_robot_driver's standard ur_control.launch.py, swapping in our combined
 arm + gripper model, and adds the gripper controllers.
 
@@ -35,6 +38,7 @@ def generate_launch_description():
     robot_ip = LaunchConfiguration("robot_ip")
     use_mock_hardware = LaunchConfiguration("use_mock_hardware")
     use_gripper = LaunchConfiguration("use_gripper")
+    headless_mode = LaunchConfiguration("headless_mode")
     kinematics_params_file = LaunchConfiguration("kinematics_params_file")
     launch_rviz = LaunchConfiguration("launch_rviz")
 
@@ -73,6 +77,12 @@ def generate_launch_description():
             default_value="true",
             description="Control the real gripper through the wrist connector "
             "(needs the Tool Comm Forwarder URCapX). Always on in simulation.",
+        ),
+        DeclareLaunchArgument(
+            "headless_mode",
+            default_value="false",
+            description="Send the control program from ROS instead of playing ros_control on "
+            "the pendant. Needs the robot in Remote Control mode (see README).",
         ),
         DeclareLaunchArgument(
             "launch_rviz",
@@ -133,6 +143,7 @@ def generate_launch_description():
             "tool_tx_idle_chars": "3.5",
             "tool_device_name": "/tmp/ttyUR",
             "update_rate_config_file": controller_manager_config,
+            "headless_mode": headless_mode,
         }.items(),
     )
 
@@ -169,6 +180,7 @@ def generate_launch_description():
         package="ur7e_robotiq_control",
         executable="gripper_bringup.py",
         condition=real_gripper,
+        parameters=[{"headless_mode": headless_mode}],
         output="screen",
     )
 

@@ -10,6 +10,8 @@ Control program has been played, so the gripper can't be activated at launch.
 - Each time the program starts, this node waits a moment, then activates the gripper hardware
   (first time only, followed by one explicit gripper re-activation) and any gripper controllers
   that aren't active.
+- In headless mode, if that first activation stops the robot program, the program is resent
+  automatically (with the pendant workflow you press play again instead).
 - It never switches anything off: the robot keeps the tool powered when the program stops, and
   ur_robot_driver's controller_stopper pauses the gripper controllers together with the arm's.
 """
@@ -39,6 +41,9 @@ class GripperBringup(Node):
     def __init__(self):
         super().__init__("gripper_bringup")
         self.delay = self.declare_parameter("activation_delay", 2.0).value
+        # In headless mode there's no pendant program to press play on: if the gripper's
+        # activation stops the robot program, send it again ourselves.
+        self.headless = self.declare_parameter("headless_mode", False).value
         cm = "/controller_manager"
         self.list_hw = self.create_client(ListHardwareComponents, f"{cm}/list_hardware_components")
         self.set_hw = self.create_client(
@@ -49,6 +54,8 @@ class GripperBringup(Node):
         self.reactivate = self.create_client(
             Trigger, "/robotiq_activation_controller/reactivate_gripper"
         )
+        self.resend = self.create_client(Trigger, "/io_and_status_controller/resend_robot_program")
+        self.resend_timer = None
         self.program_running = False
         self.needs_reactivation = False
         self.timer = None
@@ -90,6 +97,10 @@ class GripperBringup(Node):
 
     def after_set_hw(self, res):
         self.needs_reactivation = res is not None and res.ok
+        if self.headless and self.needs_reactivation and self.resend_timer is None:
+            # Activating the gripper hardware blocks ros2_control for ~2 s, which makes the
+            # robot's control script time out and exit. Restart it if that happened.
+            self.resend_timer = self.create_timer(1.0, self.resend_if_stopped)
         if res is None or not res.ok:
             self.get_logger().error(
                 "Could not activate the gripper. Check that the Tool Comm Forwarder URCapX is "
@@ -119,6 +130,21 @@ class GripperBringup(Node):
             self.reactivate_once()
         else:
             self.get_logger().error("Could not activate the gripper controllers.")
+
+    def resend_if_stopped(self):
+        self.resend_timer.cancel()
+        self.destroy_timer(self.resend_timer)
+        self.resend_timer = None
+        if self.program_running:
+            return
+        self.get_logger().info("Robot program stopped during gripper activation: resending it.")
+        self.call(self.resend, Trigger.Request(), self.after_resend)
+
+    def after_resend(self, res):
+        if res is None or not res.success:
+            self.get_logger().error(
+                "Could not resend the robot program. Is the robot in Remote Control mode?"
+            )
 
     def reactivate_once(self):
         # After the gripper has been powered off (e.g. robot reboot), robotiq_driver's own

@@ -91,6 +91,37 @@ calibration file in `ur7e_robotiq_control/config/calibration/`:
 Add `use_gripper:=false` to step 1 to run the arm without controlling the gripper.
 Only run one robot (real or simulated) per PC at a time.
 
+### Headless mode (no pendant program)
+
+Instead of playing `ros_control` on the pendant, ROS can send the control program itself.
+No Update program, no play button, and the first-play program stop is handled automatically.
+The robot must be in **Remote** control mode:
+
+1. On the pendant, tap the button in the **top-right corner** to open *Safety Overview* /
+   *Mode Selection*.
+2. Under **Select Operational mode**, choose **Automatic** (password: factory default
+   `operator`, unless your lab has changed it).
+3. Under **Select Control mode**, choose **Remote**.
+4. Power on the robot and release the brakes.
+
+Then start the driver with `headless_mode:=true` (and MoveIt as usual):
+
+```bash
+ros2 launch ur7e_robotiq_control start_robot.launch.py robot_serial:=<SERIAL> headless_mode:=true
+```
+
+If the program stops later (e.g. after a protective stop or e-stop), restart it from ROS instead
+of the pendant:
+
+```bash
+ros2 service call /io_and_status_controller/resend_robot_program std_srvs/srv/Trigger
+```
+
+Notes: in Remote mode the pendant can't start programs (switch back to **Local** to use pendant
+programs), and nothing on the pendant marks the moment ROS takes control, so the arm can move as
+soon as someone sends a command. Automatic mode also changes which safety limits apply: follow
+your lab's rules for it.
+
 ### One-time robot setup (per arm)
 
 On the teach pendant (PolyScope X 10.13):
@@ -132,6 +163,9 @@ Known issues / not yet done:
   the gripper does its activation stroke, so the arm driver sends nothing and the robot's
   External Control script exits (`Socket timed out waiting for command on reverse_socket`).
 - Starting right after a robot boot (boot → driver → Update program → play) was tested and works.
+- Headless mode (`headless_mode:=true`, robot in Remote) was tested: program sent, gripper
+  activated, program automatically resent, gripper commands OK. Arm motion in headless mode
+  hasn't been tested yet.
 - UR7e **20265702166** still needs the one-time robot setup below and its calibration file.
 - The `ros_control` program on 20265702158 also has a Script node
   (`set_tool_voltage(24)`, `set_tool_communication(True, 115200, 0, 1, 1.5, 3.5)`) before the
@@ -166,7 +200,8 @@ ros2 run ur7e_robotiq_control check_gripper_comm.py
 | `Could not activate the gripper` in the driver log | Fix the cause above, then restart the driver (`robotiq_driver` can't retry after a failed connection). |
 | `/joint_states` has extra joints named `UR<serial>_...` | That's the robot's own ROS 2 node. Set `export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` (see setup). |
 | Driver warns *dashboard server is not available* | Normal on PolyScope X. |
-| Arm doesn't move, `joint_trajectory_controller` inactive | The `ros_control` program isn't running (the driver pauses arm controllers when it stops). Press play. |
+| Arm doesn't move, `joint_trajectory_controller` inactive | The robot program isn't running (the driver pauses arm controllers when it stops). Press play, or in headless mode call `/io_and_status_controller/resend_robot_program`. |
+| Headless: *Could not resend the robot program* / nothing happens at startup | The robot isn't in Remote control mode, or isn't powered on with brakes released. |
 | `ur_calibration` keeps reconnecting (*Reconnect called on a socket that is not in LostConnection state*) | Bug in the apt package for Lyrical. Build `ur_calibration` from the UR driver source. |
 
 ## Other useful commands
