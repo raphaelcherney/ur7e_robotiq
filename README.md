@@ -15,9 +15,13 @@ Everything else (UR driver, UR description, Robotiq description, MoveIt) is inst
 
 ## One-time setup
 
+The repository is private: ask to be added as a collaborator, and add an
+[SSH key to your GitHub account](https://docs.github.com/en/authentication/connecting-to-github-with-ssh)
+on the machine you're using.
+
 ```bash
 mkdir -p ~/ws/ur/src && cd ~/ws/ur/src
-# put this folder here (git clone ... ur7e_robotiq)
+git clone git@github.com:raphaelcherney/ur7e_robotiq.git
 cd ~/ws/ur
 source /opt/ros/lyrical/setup.bash
 rosdep install --from-paths src --ignore-src -y   # installs any missing apt packages
