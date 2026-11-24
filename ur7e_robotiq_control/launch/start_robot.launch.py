@@ -20,8 +20,16 @@ activation stops the program: in headless mode it is resent automatically, with 
 program press play again. Use use_gripper:=false to run the arm alone.
 """
 
+import subprocess
+
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    LogInfo,
+    OpaqueFunction,
+    Shutdown,
+)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
@@ -33,6 +41,27 @@ from launch.substitutions import (
 )
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+
+
+def start_if_no_other_gripper_bridge(context, use_tool_communication, actions):
+    """Start `actions`, unless a gripper serial bridge from an earlier launch is still running.
+
+    A leftover socat (e.g. from a launch that crashed) also holds a connection to the robot's
+    Tool Comm Forwarder and the /tmp/ttyUR link, and the gripper then never answers.
+    """
+    if context.perform_substitution(use_tool_communication) != "true":
+        return actions
+    found = subprocess.run(["pgrep", "-f", "socat.*link=/tmp/ttyUR"], capture_output=True)
+    if found.returncode != 0:
+        return actions
+    return [
+        LogInfo(
+            msg="A gripper serial bridge (socat on /tmp/ttyUR) from an earlier launch is still "
+            "running, so the gripper wouldn't answer. Stop all other robot launches, then run: "
+            "pkill -f 'link=/tmp/ttyUR'; pkill -f tool_communication.py"
+        ),
+        Shutdown(reason="another gripper bridge is already running"),
+    ]
 
 
 def generate_launch_description():
@@ -185,7 +214,12 @@ def generate_launch_description():
         output="screen",
     )
 
-    return LaunchDescription(
-        declared_arguments
-        + [ur_control, mock_gripper_spawner, real_gripper_spawner, gripper_bringup]
+    start = OpaqueFunction(
+        function=start_if_no_other_gripper_bridge,
+        args=[
+            use_tool_communication,
+            [ur_control, mock_gripper_spawner, real_gripper_spawner, gripper_bringup],
+        ],
     )
+
+    return LaunchDescription(declared_arguments + [start])
