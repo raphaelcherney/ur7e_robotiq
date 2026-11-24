@@ -1,0 +1,11 @@
+# Gripper controller, loaded on top of ur_robot_driver's own controllers (ur_controllers.yaml).
+# Action server: /robotiq_gripper_controller/gripper_cmd (control_msgs/action/ParallelGripperCommand)
+# Joint position: 0.0 = fully open, ~0.79 = fully closed.
+robotiq_gripper_controller:
+  ros__parameters:
+    type: parallel_gripper_action_controller/GripperActionController
+    joint: robotiq_85_left_knuckle_joint
+    state_interfaces: [position, velocity]
+    goal_tolerance: 0.02
+    allow_stalling: true
+    stall_timeout: 0.5

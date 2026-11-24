@@ -1,0 +1,112 @@
+<?xml version="1.0"?>
+<!--
+  Full model used by the driver: the cell description + ros2_control tags for the arm and gripper.
+  This is a drop-in replacement for ur_robot_driver/urdf/ur.urdf.xacro, so it accepts the same
+  arguments that ur_robot_driver's ur_rsp.launch.py passes in.
+-->
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="ur7e_robotiq">
+  <xacro:arg name="name" default="ur7e"/>
+
+  <xacro:include filename="$(find ur7e_robotiq_description)/urdf/ur7e_robotiq_macro.xacro"/>
+  <xacro:include filename="$(find ur_robot_driver)/urdf/ur.ros2_control.xacro"/>
+  <xacro:include filename="$(find ur7e_robotiq_control)/urdf/robotiq_2f_85_mock.ros2_control.xacro"/>
+
+  <xacro:arg name="ur_type" default="ur7e"/>
+
+  <!-- Arm parameters (pass a calibration file via kinematics_params for a real robot) -->
+  <xacro:arg name="tf_prefix" default=""/>
+  <xacro:arg name="joint_limit_params" default="$(find ur_description)/config/ur7e/joint_limits.yaml"/>
+  <xacro:arg name="kinematics_params" default="$(find ur_description)/config/ur7e/default_kinematics.yaml"/>
+  <xacro:arg name="physical_params" default="$(find ur_description)/config/ur7e/physical_parameters.yaml"/>
+  <xacro:arg name="visual_params" default="$(find ur_description)/config/ur7e/visual_parameters.yaml"/>
+  <xacro:arg name="transmission_hw_interface" default=""/>
+  <xacro:arg name="safety_limits" default="false"/>
+  <xacro:arg name="safety_pos_margin" default="0.15"/>
+  <xacro:arg name="safety_k_position" default="20"/>
+
+  <!-- UR driver parameters (filled in by ur_robot_driver's launch files) -->
+  <xacro:arg name="headless_mode" default="false"/>
+  <xacro:arg name="robot_ip" default="0.0.0.0"/>
+  <xacro:arg name="script_filename" default=""/>
+  <xacro:arg name="output_recipe_filename" default=""/>
+  <xacro:arg name="input_recipe_filename" default=""/>
+  <xacro:arg name="reverse_ip" default="0.0.0.0"/>
+  <xacro:arg name="script_command_port" default="50004"/>
+  <xacro:arg name="reverse_port" default="50001"/>
+  <xacro:arg name="script_sender_port" default="50002"/>
+  <xacro:arg name="trajectory_port" default="50003"/>
+  <xacro:arg name="verify_robot_model" default="true"/>
+  <xacro:arg name="blocking_read" default="false"/>
+
+  <!-- Tool communication (RS-485 on the wrist connector; needed to talk to the gripper directly) -->
+  <xacro:arg name="use_tool_communication" default="false"/>
+  <xacro:arg name="tool_voltage" default="0"/>
+  <xacro:arg name="tool_parity" default="0"/>
+  <xacro:arg name="tool_baud_rate" default="115200"/>
+  <xacro:arg name="tool_stop_bits" default="1"/>
+  <xacro:arg name="tool_rx_idle_chars" default="1.5"/>
+  <xacro:arg name="tool_tx_idle_chars" default="3.5"/>
+  <xacro:arg name="tool_device_name" default="/tmp/ttyUR"/>
+  <xacro:arg name="tool_tcp_port" default="54321"/>
+
+  <!-- Simulation -->
+  <xacro:arg name="use_mock_hardware" default="false"/>
+  <xacro:arg name="mock_sensor_commands" default="false"/>
+  <xacro:arg name="initial_positions_file" default="$(find ur_description)/config/initial_positions.yaml"/>
+
+  <xacro:property name="initial_positions_file" value="$(arg initial_positions_file)"/>
+  <xacro:property name="blocking_read" value="$(arg blocking_read)"/>
+
+  <link name="world"/>
+
+  <xacro:ur7e_robotiq
+    parent="world"
+    tf_prefix="$(arg tf_prefix)"
+    joint_limits_parameters_file="$(arg joint_limit_params)"
+    kinematics_parameters_file="$(arg kinematics_params)"
+    physical_parameters_file="$(arg physical_params)"
+    visual_parameters_file="$(arg visual_params)"
+    safety_limits="$(arg safety_limits)"
+    safety_pos_margin="$(arg safety_pos_margin)"
+    safety_k_position="$(arg safety_k_position)">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </xacro:ur7e_robotiq>
+
+  <!-- ros2_control for the arm (provided by ur_robot_driver) -->
+  <xacro:ur_ros2_control
+    name="$(arg name)"
+    tf_prefix="$(arg tf_prefix)"
+    kinematics_parameters_file="$(arg kinematics_params)"
+    transmission_hw_interface="$(arg transmission_hw_interface)"
+    use_mock_hardware="$(arg use_mock_hardware)"
+    mock_sensor_commands="$(arg mock_sensor_commands)"
+    headless_mode="$(arg headless_mode)"
+    initial_positions="${xacro.load_yaml(initial_positions_file)}"
+    use_tool_communication="$(arg use_tool_communication)"
+    tool_voltage="$(arg tool_voltage)"
+    tool_parity="$(arg tool_parity)"
+    tool_baud_rate="$(arg tool_baud_rate)"
+    tool_stop_bits="$(arg tool_stop_bits)"
+    tool_rx_idle_chars="$(arg tool_rx_idle_chars)"
+    tool_tx_idle_chars="$(arg tool_tx_idle_chars)"
+    tool_device_name="$(arg tool_device_name)"
+    tool_tcp_port="$(arg tool_tcp_port)"
+    robot_ip="$(arg robot_ip)"
+    script_filename="$(arg script_filename)"
+    output_recipe_filename="$(arg output_recipe_filename)"
+    input_recipe_filename="$(arg input_recipe_filename)"
+    reverse_ip="$(arg reverse_ip)"
+    script_command_port="$(arg script_command_port)"
+    reverse_port="$(arg reverse_port)"
+    script_sender_port="$(arg script_sender_port)"
+    trajectory_port="$(arg trajectory_port)"
+    ur_type="$(arg ur_type)"
+    verify_robot_model="$(arg verify_robot_model)"
+    non_blocking_read="${not blocking_read}"/>
+
+  <!-- ros2_control for the gripper. For now this is only added in simulation (mock hardware).
+       Controlling the real gripper from ROS needs an extra driver and is set up separately. -->
+  <xacro:if value="$(arg use_mock_hardware)">
+    <xacro:robotiq_2f_85_mock_ros2_control name="robotiq_2f_85" prefix="$(arg tf_prefix)"/>
+  </xacro:if>
+</robot>

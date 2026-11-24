@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<!--
+  Simulated (mock) ros2_control block for the Robotiq 2F-85.
+  Only the actuated joint has a command interface. The other finger joints are <mimic> joints in
+  the URDF, and ros2_control fills in their states automatically.
+  (The block shipped in the apt robotiq_description is written for older ros2_control and is
+  rejected by Lyrical, so we use this one.)
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="robotiq_2f_85_mock_ros2_control" params="name prefix">
+    <ros2_control name="${name}" type="system">
+      <hardware>
+        <plugin>mock_components/GenericSystem</plugin>
+      </hardware>
+      <joint name="${prefix}robotiq_85_left_knuckle_joint">
+        <command_interface name="position"/>
+        <state_interface name="position">
+          <param name="initial_value">0.0</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+      <!-- Mimic joints: state interfaces only (ros2_control computes them from the left knuckle) -->
+      <joint name="${prefix}robotiq_85_right_knuckle_joint">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="${prefix}robotiq_85_left_inner_knuckle_joint">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="${prefix}robotiq_85_right_inner_knuckle_joint">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="${prefix}robotiq_85_left_finger_tip_joint">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="${prefix}robotiq_85_right_finger_tip_joint">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+    </ros2_control>
+  </xacro:macro>
+</robot>

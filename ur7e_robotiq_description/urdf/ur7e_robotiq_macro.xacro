@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+<!--
+  Kinematic/visual description of the cell: UR7e arm + UR-to-Robotiq coupling + Robotiq 2F-85.
+  This file contains NO ros2_control tags. Those live in ur7e_robotiq_control, following the
+  layout of the official UR "my_robot_cell" tutorial:
+  https://docs.universal-robots.com/Universal_Robots_ROS2_Documentation/doc/ur_tutorials/my_robot_cell/doc/index.html
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
+  <xacro:include filename="$(find robotiq_description)/urdf/ur_to_robotiq_adapter.urdf.xacro"/>
+  <xacro:include filename="$(find robotiq_description)/urdf/robotiq_2f_85_macro.urdf.xacro"/>
+
+  <xacro:macro name="ur7e_robotiq" params="
+    parent
+    *origin
+    tf_prefix:=''
+    joint_limits_parameters_file
+    kinematics_parameters_file
+    physical_parameters_file
+    visual_parameters_file
+    safety_limits:=false
+    safety_pos_margin:=0.15
+    safety_k_position:=20">
+
+    <!-- The arm. "name" must be the robot model so the driver can verify it. -->
+    <xacro:ur_robot
+      name="ur7e"
+      tf_prefix="${tf_prefix}"
+      parent="${parent}"
+      joint_limits_parameters_file="${joint_limits_parameters_file}"
+      kinematics_parameters_file="${kinematics_parameters_file}"
+      physical_parameters_file="${physical_parameters_file}"
+      visual_parameters_file="${visual_parameters_file}"
+      safety_limits="${safety_limits}"
+      safety_pos_margin="${safety_pos_margin}"
+      safety_k_position="${safety_k_position}">
+      <xacro:insert_block name="origin"/>
+    </xacro:ur_robot>
+
+    <!-- Robotiq coupling between the UR tool flange (tool0) and the gripper -->
+    <xacro:ur_to_robotiq prefix="${tf_prefix}" connected_to="${tf_prefix}tool0"/>
+
+    <!-- The gripper. ros2_control is added separately (see ur7e_robotiq_control). -->
+    <xacro:robotiq_gripper
+      name="RobotiqGripperHardwareInterface"
+      prefix="${tf_prefix}"
+      parent="${tf_prefix}gripper_mount_link"
+      include_ros2_control="false">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:robotiq_gripper>
+
+    <!-- Tool center point, roughly in the middle of the finger pads.
+         Use this frame as the MoveIt end-effector link. Adjust if you mount custom fingers. -->
+    <link name="${tf_prefix}gripper_tcp"/>
+    <joint name="${tf_prefix}gripper_tcp_joint" type="fixed">
+      <parent link="${tf_prefix}robotiq_85_base_link"/>
+      <child link="${tf_prefix}gripper_tcp"/>
+      <origin xyz="0 0 0.135" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+</robot>

@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<!-- Visualization-only model (no ros2_control). Used by view_robot.launch.py and MoveIt Setup Assistant. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="ur7e_robotiq">
+  <xacro:include filename="$(find ur7e_robotiq_description)/urdf/ur7e_robotiq_macro.xacro"/>
+
+  <xacro:arg name="tf_prefix" default=""/>
+  <xacro:arg name="joint_limit_params" default="$(find ur_description)/config/ur7e/joint_limits.yaml"/>
+  <xacro:arg name="kinematics_params" default="$(find ur_description)/config/ur7e/default_kinematics.yaml"/>
+  <xacro:arg name="physical_params" default="$(find ur_description)/config/ur7e/physical_parameters.yaml"/>
+  <xacro:arg name="visual_params" default="$(find ur_description)/config/ur7e/visual_parameters.yaml"/>
+
+  <link name="world"/>
+
+  <xacro:ur7e_robotiq
+    parent="world"
+    tf_prefix="$(arg tf_prefix)"
+    joint_limits_parameters_file="$(arg joint_limit_params)"
+    kinematics_parameters_file="$(arg kinematics_params)"
+    physical_parameters_file="$(arg physical_params)"
+    visual_parameters_file="$(arg visual_params)">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </xacro:ur7e_robotiq>
+</robot>
