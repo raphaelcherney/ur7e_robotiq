@@ -164,8 +164,7 @@ Known issues / not yet done:
   External Control script exits (`Socket timed out waiting for command on reverse_socket`).
 - Starting right after a robot boot (boot → driver → Update program → play) was tested and works.
 - Headless mode (`headless_mode:=true`, robot in Remote) was tested: program sent, gripper
-  activated, program automatically resent, gripper commands OK. Arm motion in headless mode
-  hasn't been tested yet.
+  activated, program automatically resent, gripper commands and arm trajectories OK.
 - UR7e **20265702166** still needs the one-time robot setup below and its calibration file.
 - The `ros_control` program on 20265702158 also has a Script node
   (`set_tool_voltage(24)`, `set_tool_communication(True, 115200, 0, 1, 1.5, 3.5)`) before the
