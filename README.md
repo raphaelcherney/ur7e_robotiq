@@ -70,57 +70,58 @@ calibration file in `ur7e_robotiq_control/config/calibration/`:
 | 20265702158 | `ur7e_20265702158.yaml` |
 | 20265702166 | not extracted yet |
 
-1. Terminal 1 (driver):
+By default ROS sends the robot's control program itself ("headless mode"): nothing to run on
+the pendant.
+
+1. On the pendant, put the robot in **Remote** control mode (once; it stays that way):
+   tap the button in the **top-right corner** to open *Safety Overview* / *Mode Selection*,
+   choose **Automatic** under **Select Operational mode** (password: factory default
+   `operator`, unless your lab has changed it), then **Remote** under **Select Control mode**.
+2. Power on the robot and release the brakes.
+3. Terminal 1 (driver):
    ```bash
    ros2 launch ur7e_robotiq_control start_robot.launch.py robot_serial:=<SERIAL>
+   ```
+   The driver sends the program and the gripper activates (its fingers open and close). This
+   stops the program once; the driver resends it automatically. Wait for `Gripper ready.`
+4. Terminal 2 (MoveIt):
+   ```bash
+   ros2 launch ur7e_robotiq_moveit_config moveit.launch.py
+   ```
+   In RViz, keep the velocity scaling low (default 0.1) until you're confident in your motion.
+   In Automatic mode the pendant speed slider is usually at 100%, so it won't slow you down.
+
+If the program stops later (e.g. after a protective stop or e-stop), restart it from ROS:
+
+```bash
+ros2 service call /io_and_status_controller/resend_robot_program std_srvs/srv/Trigger
+```
+
+Add `use_gripper:=false` to step 3 to run the arm without controlling the gripper.
+Only run one robot (real or simulated) per PC at a time.
+
+> **Safety:** in Remote mode, nothing on the pendant marks the moment ROS takes control: the arm
+> can move as soon as anyone sends a command. Keep the e-stop within reach. Automatic mode also
+> changes which safety limits apply: follow your lab's rules for it. In Remote mode the pendant
+> can't start programs; switch back to **Local** (same menu) to use pendant programs.
+
+### Alternative: pendant program (Local mode)
+
+To keep an explicit "hand control to ROS" step on the pendant, leave the robot in **Local** mode
+and add `headless_mode:=false`:
+
+1. Terminal 1:
+   ```bash
+   ros2 launch ur7e_robotiq_control start_robot.launch.py robot_serial:=<SERIAL> headless_mode:=false
    ```
 2. On the pendant, open the `ros_control` program (it contains a single **External Control**
    node) and press play. If the External Control node is **yellow** (always the case after the
    robot reboots) or PolyScope says *"Program is not finished"*, first select the node, press
    **Update program** (the driver must be running), then play.
    The driver log shows `Robot connected to reverse interface. Ready to receive control commands.`
-   The first time after starting the driver, the gripper then activates (its fingers open and
-   close) and **the program stops**: press play once more. After that it stays running.
-3. Terminal 2 (MoveIt):
-   ```bash
-   ros2 launch ur7e_robotiq_moveit_config moveit.launch.py
-   ```
-   In RViz, keep the velocity scaling low (default 0.1) and the pendant speed slider low until
-   you're confident in your motion.
-
-Add `use_gripper:=false` to step 1 to run the arm without controlling the gripper.
-Only run one robot (real or simulated) per PC at a time.
-
-### Headless mode (no pendant program)
-
-Instead of playing `ros_control` on the pendant, ROS can send the control program itself.
-No Update program, no play button, and the first-play program stop is handled automatically.
-The robot must be in **Remote** control mode:
-
-1. On the pendant, tap the button in the **top-right corner** to open *Safety Overview* /
-   *Mode Selection*.
-2. Under **Select Operational mode**, choose **Automatic** (password: factory default
-   `operator`, unless your lab has changed it).
-3. Under **Select Control mode**, choose **Remote**.
-4. Power on the robot and release the brakes.
-
-Then start the driver with `headless_mode:=true` (and MoveIt as usual):
-
-```bash
-ros2 launch ur7e_robotiq_control start_robot.launch.py robot_serial:=<SERIAL> headless_mode:=true
-```
-
-If the program stops later (e.g. after a protective stop or e-stop), restart it from ROS instead
-of the pendant:
-
-```bash
-ros2 service call /io_and_status_controller/resend_robot_program std_srvs/srv/Trigger
-```
-
-Notes: in Remote mode the pendant can't start programs (switch back to **Local** to use pendant
-programs), and nothing on the pendant marks the moment ROS takes control, so the arm can move as
-soon as someone sends a command. Automatic mode also changes which safety limits apply: follow
-your lab's rules for it.
+   The first time after starting the driver, the gripper then activates and **the program
+   stops**: press play once more. After that it stays running.
+3. MoveIt as above. After a protective stop, press play on the pendant.
 
 ### One-time robot setup (per arm)
 
@@ -128,7 +129,8 @@ On the teach pendant (PolyScope X 10.13):
 
 1. **Services:** ☰ → Settings → Security → Services (unlock with the admin password): enable
    *Primary Client Interface* and *Real-Time Data Exchange (RTDE)*.
-2. **External Control URCapX** (lets ROS move the arm): install
+2. **External Control URCapX** (needed for the pendant-program alternative; headless mode
+   doesn't use it): install
    [`external-control-1.2.1.urcapx`](https://github.com/UniversalRobots/Universal_Robots_ExternalControl_URCapX/releases)
    from a USB stick via ☰ → System Manager → URCaps → **+URCap**. After the reboot, open the
    **External Control** application and set the host IP to `192.168.56.1`. Create and save a
@@ -158,13 +160,13 @@ and MoveIt planning and execution from RViz.
 
 Known issues / not yet done:
 
-- The first gripper activation after starting the driver stops the `ros_control` program, so
-  you press play twice once. Cause: `robotiq_driver` blocks ros2_control's loop for ~2 s while
+- The first gripper activation after starting the driver stops the robot program (resent
+  automatically in headless mode; with the pendant program you press play twice once). Cause: `robotiq_driver` blocks ros2_control's loop for ~2 s while
   the gripper does its activation stroke, so the arm driver sends nothing and the robot's
   External Control script exits (`Socket timed out waiting for command on reverse_socket`).
 - Starting right after a robot boot (boot → driver → Update program → play) was tested and works.
-- Headless mode (`headless_mode:=true`, robot in Remote) was tested: program sent, gripper
-  activated, program automatically resent, gripper commands and arm trajectories OK.
+- Headless mode (the default, robot in Remote) was tested: program sent, gripper activated,
+  program automatically resent, gripper commands and arm trajectories OK.
 - UR7e **20265702166** still needs the one-time robot setup below and its calibration file.
 - The `ros_control` program on 20265702158 also has a Script node
   (`set_tool_voltage(24)`, `set_tool_communication(True, 115200, 0, 1, 1.5, 3.5)`) before the
@@ -194,7 +196,7 @@ ros2 run ur7e_robotiq_control check_gripper_comm.py
 | `check_gripper_comm.py`: *cannot connect* | Forwarder not installed/started, or port 54321 blocked under Inbound Connections. |
 | `check_gripper_comm.py`: *no valid reply* | Tool not powered yet: play `ros_control` once. Then check the gripper cable. |
 | *"Program is not finished. Complete the yellow program-nodes..."* when pressing play | The External Control node has no program yet (normal after a robot reboot). With the driver running, select the node, press **Update program**, then play. |
-| The program stops a second after you first press play; robot log says *Socket timed out waiting for command on reverse_socket* | Expected once per driver start: the gripper's activation briefly blocks the driver. Press play again. |
+| The program stops a second after you first press play; robot log says *Socket timed out waiting for command on reverse_socket* | Expected once per driver start: the gripper's activation briefly blocks the driver. Headless mode resends the program automatically; with the pendant program, press play again. |
 | Gripper commands "stall" and the fingers don't move after a robot reboot | The gripper isn't really activated. `gripper_bringup` re-activates it automatically; to do it by hand: `ros2 service call /robotiq_activation_controller/reactivate_gripper std_srvs/srv/Trigger`. |
 | `Could not activate the gripper` in the driver log | Fix the cause above, then restart the driver (`robotiq_driver` can't retry after a failed connection). |
 | `/joint_states` has extra joints named `UR<serial>_...` | That's the robot's own ROS 2 node. Set `export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` (see setup). |

@@ -3,20 +3,21 @@
 Simulated (no robot needed):
     ros2 launch ur7e_robotiq_control start_robot.launch.py use_mock_hardware:=true
 
-Real robot (robot_serial is on the arm's label and selects its calibration):
+Real robot, robot in Remote control mode (robot_serial is on the arm's label and selects its
+calibration):
     ros2 launch ur7e_robotiq_control start_robot.launch.py robot_serial:=20265702158
 
-Real robot without the pendant program (robot in Remote Control mode):
-    ros2 launch ur7e_robotiq_control start_robot.launch.py robot_serial:=20265702158 headless_mode:=true
+Real robot using the ros_control program on the pendant instead (robot in Local mode):
+    ros2 launch ur7e_robotiq_control start_robot.launch.py robot_serial:=20265702158 headless_mode:=false
 
 This wraps ur_robot_driver's standard ur_control.launch.py, swapping in our combined
 arm + gripper model, and adds the gripper controllers.
 
 On the real robot the gripper is controlled through the UR wrist connector. That needs the
 Tool Comm Forwarder URCapX installed and started on the robot (see README). The gripper is
-activated when the ros_control program is first played (scripts/gripper_bringup.py); that
-first activation stops the program, so press play again. Use use_gripper:=false to run the
-arm alone.
+activated once the robot program first runs (scripts/gripper_bringup.py). That first
+activation stops the program: in headless mode it is resent automatically, with the pendant
+program press play again. Use use_gripper:=false to run the arm alone.
 """
 
 from launch import LaunchDescription
@@ -80,9 +81,9 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "headless_mode",
-            default_value="false",
-            description="Send the control program from ROS instead of playing ros_control on "
-            "the pendant. Needs the robot in Remote Control mode (see README).",
+            default_value="true",
+            description="Send the control program from ROS (robot in Remote control mode). "
+            "Set to false to use the ros_control program on the pendant instead (Local mode).",
         ),
         DeclareLaunchArgument(
             "launch_rviz",
