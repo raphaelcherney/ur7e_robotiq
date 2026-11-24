@@ -36,10 +36,13 @@ colcon build --symlink-install
 source ~/ws/ur/install/setup.bash
 ```
 
-To do this automatically, add it to your `~/.bashrc` after the `/opt/ros/lyrical/setup.bash` line:
+To do this automatically, add it to your `~/.bashrc` after the `/opt/ros/lyrical/setup.bash` line.
+Also keep ROS traffic on this PC: the robot (PolyScope X) runs its own ROS 2 node that otherwise
+shows up in your ROS graph and publishes on `/joint_states` too.
 
 ```bash
 echo "source ~/ws/ur/install/setup.bash" >> ~/.bashrc
+echo "export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST" >> ~/.bashrc
 ```
 
 ## MoveIt demo (no robot needed)
@@ -71,15 +74,19 @@ calibration file in `ur7e_robotiq_control/config/calibration/`:
    ```bash
    ros2 launch ur7e_robotiq_control start_robot.launch.py robot_serial:=<SERIAL>
    ```
-2. On the pendant, run the `ros_control` program (it contains a single **External Control** node).
+2. On the pendant, play the `ros_control` program (it contains a single **External Control** node).
    The driver log shows `Robot connected to reverse interface. Ready to receive control commands.`
+   The first time after starting the driver, the gripper then activates (its fingers open and
+   close once) and **the program stops**: press play once more. After that it stays running.
 3. Terminal 2 (MoveIt):
    ```bash
    ros2 launch ur7e_robotiq_moveit_config moveit.launch.py
    ```
+   In RViz, keep the velocity scaling low (default 0.1) and the pendant speed slider low until
+   you're confident in your motion.
 
 Add `use_gripper:=false` to step 1 to run the arm without controlling the gripper.
-Only run one robot (real or simulated) per network/`ROS_DOMAIN_ID` at a time.
+Only run one robot (real or simulated) per PC at a time.
 
 ### One-time robot setup (per arm)
 
@@ -94,10 +101,13 @@ On the teach pendant (PolyScope X 10.13):
    program `ros_control` containing only an **External Control** node.
 3. **Tool Comm Forwarder URCapX** (lets ROS talk to the gripper through the wrist connector):
    install [`tool-comm-forwarder-1.0.0.urcapx`](https://github.com/UniversalRobots/Universal_Robots_ToolComm_Forwarder_URCapX/releases)
-   the same way, then enable forwarding in its application screen. Make sure port 54321 isn't
-   blocked under ☰ → Settings → Security → General → Inbound Connections.
-   Don't install the Robotiq URCapX: it conflicts with ROS controlling the gripper.
-4. **Calibration** (once per arm): with the robot on, run
+   the same way, then press **Start** for it in the Application screen. Make sure port 54321
+   isn't blocked under ☰ → Settings → Security → General → Inbound Connections.
+4. **No Robotiq URCapX:** uninstall the Robotiq Grippers URCapX if it's installed (it takes over
+   the wrist serial port), and set Application → Communication → Tool I/O → **Controlled By** to
+   **User**. Then **restart the controller**: the change only takes effect after a restart.
+   Check with `ros2 run ur7e_robotiq_control check_gripper_comm.py` (see Troubleshooting).
+5. **Calibration** (once per arm): with the robot on, run
    ```bash
    ros2 launch ur_calibration calibration_correction.launch.py robot_ip:=192.168.56.101 \
      target_filename:=$HOME/ur7e_<SERIAL>.yaml
@@ -105,6 +115,35 @@ On the teach pendant (PolyScope X 10.13):
    and add the file to `ur7e_robotiq_control/config/calibration/`. (The apt `ur_calibration`
    for Lyrical fails to connect to PolyScope X; build it from the
    [UR driver source](https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver) if needed.)
+
+## Troubleshooting (real robot)
+
+How the gripper connection works: the gripper's RS-485 cable goes through the UR wrist
+connector. The **Tool Comm Forwarder URCapX** on the robot exposes it on TCP port 54321, the UR
+driver turns that into a virtual serial port `/tmp/ttyUR` on the PC (with `socat`), and
+`robotiq_driver` talks Modbus RTU over it. The robot only powers the tool (24 V) and enables
+RS-485 once the `ros_control` program has been played, so the gripper is activated then, by
+`ur7e_robotiq_control/scripts/gripper_bringup.py`.
+
+**Check the gripper connection directly** (read-only, the gripper doesn't move; stop the driver
+first, and have `ros_control` played at least once since the robot booted):
+
+```bash
+ros2 run ur7e_robotiq_control check_gripper_comm.py
+```
+
+| Symptom | Cause / fix |
+| --- | --- |
+| `Package 'ur7e_robotiq_...' not found` | The workspace isn't sourced in this terminal: `source ~/ws/ur/install/setup.bash`. |
+| Driver log: `socat ... Broken pipe`, `Failed to communicate with the Robotiq gripper`; `check_gripper_comm.py` says *the robot closed the connection immediately* | The forwarder can't open the wrist serial port. Uninstall the **Robotiq Grippers URCapX**, set Tool I/O **Controlled By** to **User**, then **restart the controller** (a restart is required). Also check the forwarder is **Started** in the Application screen. |
+| `check_gripper_comm.py`: *cannot connect* | Forwarder not installed/started, or port 54321 blocked under Inbound Connections. |
+| `check_gripper_comm.py`: *no valid reply* | Tool not powered yet: play `ros_control` once. Then check the gripper cable. |
+| The program stops a second after you first press play | Expected: the gripper's activation stops the program. Press play again. |
+| `Could not activate the gripper` in the driver log | Fix the cause above, then restart the driver (`robotiq_driver` can't retry after a failed connection). |
+| `/joint_states` has extra joints named `UR<serial>_...` | That's the robot's own ROS 2 node. Set `export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` (see setup). |
+| Driver warns *dashboard server is not available* | Normal on PolyScope X. |
+| Arm doesn't move, `joint_trajectory_controller` inactive | The `ros_control` program isn't running (the driver pauses arm controllers when it stops). Press play. |
+| `ur_calibration` keeps reconnecting (*Reconnect called on a socket that is not in LostConnection state*) | Bug in the apt package for Lyrical. Build `ur_calibration` from the UR driver source. |
 
 ## Other useful commands
 
@@ -131,4 +170,6 @@ ros2 action send_goal /robotiq_gripper_controller/gripper_cmd \
 - Named poses, planning groups, collision matrix: `ur7e_robotiq_moveit_config/config/ur7e_robotiq.srdf`
 - Gripper controller settings: `ur7e_robotiq_control/config/robotiq_controllers.yaml`
 - Per-robot calibrations: `ur7e_robotiq_control/config/calibration/`
+- Real-gripper startup logic: `ur7e_robotiq_control/scripts/gripper_bringup.py` and
+  `ur7e_robotiq_control/config/controller_manager_real_gripper.yaml`
 - Arm controllers: ur_robot_driver's own `config/ur_controllers.yaml` (used unchanged)

@@ -1,0 +1,12 @@
+# Controller manager settings for the real robot with the gripper (used instead of
+# ur_robot_driver's ur7e_update_rate.yaml).
+controller_manager:
+  ros__parameters:
+    update_rate: 500  # Hz, same as ur_robot_driver's default for the UR7e
+    # Start the gripper "inactive": this opens its serial port (the connection to the robot's
+    # Tool Comm Forwarder) right away, but doesn't talk to the gripper yet. The gripper can only
+    # be reached once the robot program has powered the tool, so scripts/gripper_bringup.py
+    # activates it when the program first starts. (Opening the forwarder connection while the
+    # program is running stops the program, so it must be opened before.)
+    hardware_components_initial_state:
+      inactive: [RobotiqGripperHardwareInterface]

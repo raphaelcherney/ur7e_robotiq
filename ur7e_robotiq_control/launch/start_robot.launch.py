@@ -22,8 +22,8 @@ from launch.substitutions import (
     AndSubstitution,
     LaunchConfiguration,
     NotSubstitution,
-    OrSubstitution,
     PathJoinSubstitution,
+    PythonExpression,
 )
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -82,6 +82,25 @@ def generate_launch_description():
     # Real robot + gripper: forward the wrist connector's RS-485 to a virtual serial port
     # (/tmp/ttyUR) that robotiq_driver opens. Settings are the Robotiq 2F-85 defaults.
     use_tool_communication = AndSubstitution(use_gripper, NotSubstitution(use_mock_hardware))
+    real_gripper = IfCondition(use_tool_communication)
+
+    # Real robot + gripper: the gripper hardware starts "unconfigured" and gripper_bringup.py
+    # activates it once the robot program runs (the tool is only powered/enabled then).
+    controller_manager_config = PythonExpression(
+        [
+            "'",
+            PathJoinSubstitution(
+                [FindPackageShare("ur7e_robotiq_control"), "config", "controller_manager_real_gripper.yaml"]
+            ),
+            "' if '",
+            use_tool_communication,
+            "' == 'true' else '",
+            PathJoinSubstitution(
+                [FindPackageShare("ur_robot_driver"), "config", "ur7e_update_rate.yaml"]
+            ),
+            "'",
+        ]
+    )
 
     ur_control = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -111,23 +130,47 @@ def generate_launch_description():
             "tool_rx_idle_chars": "1.5",
             "tool_tx_idle_chars": "3.5",
             "tool_device_name": "/tmp/ttyUR",
+            "update_rate_config_file": controller_manager_config,
         }.items(),
     )
 
-    gripper_controller_spawner = Node(
+    gripper_controllers_file = PathJoinSubstitution(
+        [FindPackageShare("ur7e_robotiq_control"), "config", "robotiq_controllers.yaml"]
+    )
+    gripper_controllers = ["robotiq_gripper_controller", "robotiq_activation_controller"]
+
+    # Simulation: start the gripper controllers right away.
+    mock_gripper_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        condition=IfCondition(OrSubstitution(use_mock_hardware, use_gripper)),
-        arguments=[
-            "robotiq_gripper_controller",
-            "robotiq_activation_controller",
+        condition=IfCondition(use_mock_hardware),
+        arguments=gripper_controllers
+        + ["--controller-manager", "/controller_manager", "--param-file", gripper_controllers_file],
+    )
+
+    # Real robot: load them inactive; gripper_bringup activates them when the program runs.
+    real_gripper_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        condition=real_gripper,
+        arguments=["gripper_joint_state_broadcaster"]
+        + gripper_controllers
+        + [
+            "--inactive",
             "--controller-manager",
             "/controller_manager",
             "--param-file",
-            PathJoinSubstitution(
-                [FindPackageShare("ur7e_robotiq_control"), "config", "robotiq_controllers.yaml"]
-            ),
+            gripper_controllers_file,
         ],
     )
+    gripper_bringup = Node(
+        package="ur7e_robotiq_control",
+        executable="gripper_bringup.py",
+        condition=real_gripper,
+        output="screen",
+    )
 
-    return LaunchDescription(declared_arguments + [ur_control, gripper_controller_spawner])
+    return LaunchDescription(
+        declared_arguments
+        + [ur_control, mock_gripper_spawner, real_gripper_spawner, gripper_bringup]
+    )
