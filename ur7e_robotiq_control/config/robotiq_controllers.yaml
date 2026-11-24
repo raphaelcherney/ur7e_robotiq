@@ -1,4 +1,6 @@
-# Gripper controller, loaded on top of ur_robot_driver's own controllers (ur_controllers.yaml).
+# Gripper controllers, loaded on top of ur_robot_driver's own controllers (ur_controllers.yaml).
+
+# Open/close the gripper.
 # Action server: /robotiq_gripper_controller/gripper_cmd (control_msgs/action/ParallelGripperCommand)
 # Joint position: 0.0 = fully open, ~0.79 = fully closed.
 robotiq_gripper_controller:
@@ -9,3 +11,9 @@ robotiq_gripper_controller:
     goal_tolerance: 0.02
     allow_stalling: true
     stall_timeout: 0.5
+
+# Re-activate the gripper (e.g. after a fault) with:
+#   ros2 service call /robotiq_activation_controller/reactivate_gripper std_srvs/srv/Trigger
+robotiq_activation_controller:
+  ros__parameters:
+    type: robotiq_controllers/RobotiqActivationController

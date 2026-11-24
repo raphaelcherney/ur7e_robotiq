@@ -9,7 +9,7 @@
 
   <xacro:include filename="$(find ur7e_robotiq_description)/urdf/ur7e_robotiq_macro.xacro"/>
   <xacro:include filename="$(find ur_robot_driver)/urdf/ur.ros2_control.xacro"/>
-  <xacro:include filename="$(find ur7e_robotiq_control)/urdf/robotiq_2f_85_mock.ros2_control.xacro"/>
+  <xacro:include filename="$(find robotiq_description)/urdf/2f_85.ros2_control.xacro"/>
 
   <xacro:arg name="ur_type" default="ur7e"/>
 
@@ -104,9 +104,16 @@
     verify_robot_model="$(arg verify_robot_model)"
     non_blocking_read="${not blocking_read}"/>
 
-  <!-- ros2_control for the gripper. For now this is only added in simulation (mock hardware).
-       Controlling the real gripper from ROS needs an extra driver and is set up separately. -->
-  <xacro:if value="$(arg use_mock_hardware)">
-    <xacro:robotiq_2f_85_mock_ros2_control name="robotiq_2f_85" prefix="$(arg tf_prefix)"/>
+  <!-- ros2_control for the gripper (from robotiq_description).
+       Simulation: mock hardware. Real robot: robotiq_driver, talking Modbus RTU through the UR wrist
+       connector via the virtual serial port that tool communication creates (tool_device_name).
+       Without tool communication on a real robot, the gripper is shown but not controlled. -->
+  <xacro:if value="${'$(arg use_mock_hardware)' == 'true' or '$(arg use_tool_communication)' == 'true'}">
+    <xacro:robotiq_gripper_ros2_control
+      name="RobotiqGripperHardwareInterface"
+      prefix="$(arg tf_prefix)"
+      use_fake_hardware="$(arg use_mock_hardware)"
+      mock_sensor_commands="$(arg mock_sensor_commands)"
+      com_port="$(arg tool_device_name)"/>
   </xacro:if>
 </robot>

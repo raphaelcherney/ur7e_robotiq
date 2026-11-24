@@ -1,0 +1,14 @@
+# Source dependencies that are not released as apt packages for ROS 2 Lyrical.
+# Import into your workspace's src folder with:
+#   vcs import ~/ws/ur/src < ~/ws/ur/src/ur7e_robotiq/ur7e_robotiq.repos
+repositories:
+  # Robotiq gripper driver (ros2_control hardware interface), controllers and description.
+  ros2_robotiq_gripper:
+    type: git
+    url: https://github.com/PickNikRobotics/ros2_robotiq_gripper.git
+    version: a5e1405098166dd9bd63fd24b3c03173fc1cb984
+  # Serial port library used by robotiq_driver
+  serial:
+    type: git
+    url: https://github.com/tylerjw/serial.git
+    version: d8d160678aa0b31cdf467c052b954fa287cc6cdf

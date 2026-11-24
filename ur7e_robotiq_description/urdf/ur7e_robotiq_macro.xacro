@@ -38,7 +38,7 @@
     </xacro:ur_robot>
 
     <!-- Robotiq coupling between the UR tool flange (tool0) and the gripper -->
-    <xacro:ur_to_robotiq prefix="${tf_prefix}" connected_to="${tf_prefix}tool0"/>
+    <xacro:ur_to_robotiq prefix="${tf_prefix}" parent="${tf_prefix}tool0" child="${tf_prefix}gripper_mount_link"/>
 
     <!-- The gripper. ros2_control is added separately (see ur7e_robotiq_control). -->
     <xacro:robotiq_gripper

@@ -3,18 +3,28 @@
 Simulated (no robot needed):
     ros2 launch ur7e_robotiq_control start_robot.launch.py use_mock_hardware:=true
 
-Real robot:
-    ros2 launch ur7e_robotiq_control start_robot.launch.py robot_ip:=<ROBOT_IP>
+Real robot (robot_serial is on the arm's label and selects its calibration):
+    ros2 launch ur7e_robotiq_control start_robot.launch.py robot_serial:=20265702158
 
 This wraps ur_robot_driver's standard ur_control.launch.py, swapping in our combined
-arm + gripper model, and adds the gripper controller when simulating.
+arm + gripper model, and adds the gripper controllers.
+
+On the real robot the gripper is controlled through the UR wrist connector. That needs the
+Tool Comm Forwarder URCapX installed and enabled on the robot (see README). Use
+use_gripper:=false to run the arm alone.
 """
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    AndSubstitution,
+    LaunchConfiguration,
+    NotSubstitution,
+    OrSubstitution,
+    PathJoinSubstitution,
+)
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -22,14 +32,16 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     robot_ip = LaunchConfiguration("robot_ip")
     use_mock_hardware = LaunchConfiguration("use_mock_hardware")
+    use_gripper = LaunchConfiguration("use_gripper")
     kinematics_params_file = LaunchConfiguration("kinematics_params_file")
     launch_rviz = LaunchConfiguration("launch_rviz")
 
     declared_arguments = [
         DeclareLaunchArgument(
             "robot_ip",
-            default_value="0.0.0.0",
-            description="IP address of the robot (ignored with use_mock_hardware:=true).",
+            default_value="192.168.56.101",
+            description="IP address of the robot (UR's standard direct-cable address). "
+            "Ignored with use_mock_hardware:=true.",
         ),
         DeclareLaunchArgument(
             "use_mock_hardware",
@@ -37,12 +49,28 @@ def generate_launch_description():
             description="Simulate the arm and gripper instead of connecting to a robot.",
         ),
         DeclareLaunchArgument(
+            "robot_serial",
+            default_value="nominal",
+            description="Serial number of the arm (on its label), used to pick "
+            "config/calibration/ur7e_<robot_serial>.yaml. 'nominal' = uncalibrated UR model.",
+        ),
+        DeclareLaunchArgument(
             "kinematics_params_file",
             default_value=PathJoinSubstitution(
-                [FindPackageShare("ur_description"), "config", "ur7e", "default_kinematics.yaml"]
+                [
+                    FindPackageShare("ur7e_robotiq_control"),
+                    "config",
+                    "calibration",
+                    ["ur7e_", LaunchConfiguration("robot_serial"), ".yaml"],
+                ]
             ),
-            description="Robot calibration file. Use your robot's own calibration on hardware "
-            "(see ur_calibration).",
+            description="Robot calibration file (normally chosen via robot_serial).",
+        ),
+        DeclareLaunchArgument(
+            "use_gripper",
+            default_value="true",
+            description="Control the real gripper through the wrist connector "
+            "(needs the Tool Comm Forwarder URCapX). Always on in simulation.",
         ),
         DeclareLaunchArgument(
             "launch_rviz",
@@ -50,6 +78,10 @@ def generate_launch_description():
             description="Launch the driver's plain RViz view (MoveIt has its own).",
         ),
     ]
+
+    # Real robot + gripper: forward the wrist connector's RS-485 to a virtual serial port
+    # (/tmp/ttyUR) that robotiq_driver opens. Settings are the Robotiq 2F-85 defaults.
+    use_tool_communication = AndSubstitution(use_gripper, NotSubstitution(use_mock_hardware))
 
     ur_control = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -71,15 +103,24 @@ def generate_launch_description():
                     "ur7e_robotiq_controlled.urdf.xacro",
                 ]
             ),
+            "use_tool_communication": use_tool_communication,
+            "tool_voltage": "24",
+            "tool_parity": "0",
+            "tool_baud_rate": "115200",
+            "tool_stop_bits": "1",
+            "tool_rx_idle_chars": "1.5",
+            "tool_tx_idle_chars": "3.5",
+            "tool_device_name": "/tmp/ttyUR",
         }.items(),
     )
 
     gripper_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        condition=IfCondition(use_mock_hardware),
+        condition=IfCondition(OrSubstitution(use_mock_hardware, use_gripper)),
         arguments=[
             "robotiq_gripper_controller",
+            "robotiq_activation_controller",
             "--controller-manager",
             "/controller_manager",
             "--param-file",
