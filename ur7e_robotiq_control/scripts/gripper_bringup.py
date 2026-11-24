@@ -7,9 +7,9 @@ Control program has been played, so the gripper can't be activated at launch.
 
 - The gripper hardware starts "inactive" (config/controller_manager_real_gripper.yaml): its serial
   port, i.e. the connection to the forwarder, is opened at launch.
-- Each time the program starts, this node waits a moment (gripper traffic right as the program
-  starts makes PolyScope X stop the program), then activates the gripper hardware (first time
-  only) and any gripper controllers that aren't active.
+- Each time the program starts, this node waits a moment, then activates the gripper hardware
+  (first time only, followed by one explicit gripper re-activation) and any gripper controllers
+  that aren't active.
 - It never switches anything off: the robot keeps the tool powered when the program stops, and
   ur_robot_driver's controller_stopper pauses the gripper controllers together with the arm's.
 """
@@ -21,6 +21,7 @@ from controller_manager_msgs.srv import (
     SetHardwareComponentState,
     SwitchController,
 )
+from std_srvs.srv import Trigger
 from lifecycle_msgs.msg import State
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
@@ -45,7 +46,11 @@ class GripperBringup(Node):
         )
         self.list_ctrl = self.create_client(ListControllers, f"{cm}/list_controllers")
         self.switch = self.create_client(SwitchController, f"{cm}/switch_controller")
+        self.reactivate = self.create_client(
+            Trigger, "/robotiq_activation_controller/reactivate_gripper"
+        )
         self.program_running = False
+        self.needs_reactivation = False
         self.timer = None
         qos = QoSProfile(
             depth=1,
@@ -84,6 +89,7 @@ class GripperBringup(Node):
         self.call(self.set_hw, req, self.after_set_hw)
 
     def after_set_hw(self, res):
+        self.needs_reactivation = res is not None and res.ok
         if res is None or not res.ok:
             self.get_logger().error(
                 "Could not activate the gripper. Check that the Tool Comm Forwarder URCapX is "
@@ -101,6 +107,7 @@ class GripperBringup(Node):
             return
         inactive = [c.name for c in res.controller if c.name in CONTROLLERS and c.state != "active"]
         if not inactive:
+            self.reactivate_once()
             return
         req = SwitchController.Request()
         req.activate_controllers = inactive
@@ -109,9 +116,25 @@ class GripperBringup(Node):
 
     def after_switch(self, res):
         if res is not None and res.ok:
-            self.get_logger().info("Gripper ready.")
+            self.reactivate_once()
         else:
             self.get_logger().error("Could not activate the gripper controllers.")
+
+    def reactivate_once(self):
+        # After the gripper has been powered off (e.g. robot reboot), robotiq_driver's own
+        # activation can report success without the gripper really being activated; it then
+        # ignores commands. One explicit re-activation (fingers open/close) fixes that.
+        if not self.needs_reactivation:
+            self.get_logger().info("Gripper ready.")
+            return
+        self.needs_reactivation = False
+        self.call(self.reactivate, Trigger.Request(), self.after_reactivate)
+
+    def after_reactivate(self, res):
+        if res is not None and res.success:
+            self.get_logger().info("Gripper ready.")
+        else:
+            self.get_logger().error("Gripper re-activation failed.")
 
     def call(self, client, req, callback):
         if not client.wait_for_service(timeout_sec=10.0):

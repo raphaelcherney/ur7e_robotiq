@@ -74,10 +74,13 @@ calibration file in `ur7e_robotiq_control/config/calibration/`:
    ```bash
    ros2 launch ur7e_robotiq_control start_robot.launch.py robot_serial:=<SERIAL>
    ```
-2. On the pendant, play the `ros_control` program (it contains a single **External Control** node).
+2. On the pendant, open the `ros_control` program (it contains a single **External Control**
+   node) and press play. If the External Control node is **yellow** (always the case after the
+   robot reboots) or PolyScope says *"Program is not finished"*, first select the node, press
+   **Update program** (the driver must be running), then play.
    The driver log shows `Robot connected to reverse interface. Ready to receive control commands.`
    The first time after starting the driver, the gripper then activates (its fingers open and
-   close once) and **the program stops**: press play once more. After that it stays running.
+   close) and **the program stops**: press play once more. After that it stays running.
 3. Terminal 2 (MoveIt):
    ```bash
    ros2 launch ur7e_robotiq_moveit_config moveit.launch.py
@@ -125,9 +128,10 @@ and MoveIt planning and execution from RViz.
 Known issues / not yet done:
 
 - The first gripper activation after starting the driver stops the `ros_control` program, so
-  you press play twice once. Cause unknown.
-- Starting right after a robot boot (boot → driver → play) hasn't been re-tested since the
-  gripper fixes.
+  you press play twice once. Cause: `robotiq_driver` blocks ros2_control's loop for ~2 s while
+  the gripper does its activation stroke, so the arm driver sends nothing and the robot's
+  External Control script exits (`Socket timed out waiting for command on reverse_socket`).
+- Starting right after a robot boot (boot → driver → Update program → play) was tested and works.
 - UR7e **20265702166** still needs the one-time robot setup below and its calibration file.
 - The `ros_control` program on 20265702158 also has a Script node
   (`set_tool_voltage(24)`, `set_tool_communication(True, 115200, 0, 1, 1.5, 3.5)`) before the
@@ -156,7 +160,9 @@ ros2 run ur7e_robotiq_control check_gripper_comm.py
 | Driver log: `socat ... Broken pipe`, `Failed to communicate with the Robotiq gripper`; `check_gripper_comm.py` says *the robot closed the connection immediately* | The forwarder can't open the wrist serial port. Uninstall the **Robotiq Grippers URCapX**, set Tool I/O **Controlled By** to **User**, then **restart the controller** (a restart is required). Also check the forwarder is **Started** in the Application screen. |
 | `check_gripper_comm.py`: *cannot connect* | Forwarder not installed/started, or port 54321 blocked under Inbound Connections. |
 | `check_gripper_comm.py`: *no valid reply* | Tool not powered yet: play `ros_control` once. Then check the gripper cable. |
-| The program stops a second after you first press play | Expected: the gripper's activation stops the program. Press play again. |
+| *"Program is not finished. Complete the yellow program-nodes..."* when pressing play | The External Control node has no program yet (normal after a robot reboot). With the driver running, select the node, press **Update program**, then play. |
+| The program stops a second after you first press play; robot log says *Socket timed out waiting for command on reverse_socket* | Expected once per driver start: the gripper's activation briefly blocks the driver. Press play again. |
+| Gripper commands "stall" and the fingers don't move after a robot reboot | The gripper isn't really activated. `gripper_bringup` re-activates it automatically; to do it by hand: `ros2 service call /robotiq_activation_controller/reactivate_gripper std_srvs/srv/Trigger`. |
 | `Could not activate the gripper` in the driver log | Fix the cause above, then restart the driver (`robotiq_driver` can't retry after a failed connection). |
 | `/joint_states` has extra joints named `UR<serial>_...` | That's the robot's own ROS 2 node. Set `export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` (see setup). |
 | Driver warns *dashboard server is not available* | Normal on PolyScope X. |

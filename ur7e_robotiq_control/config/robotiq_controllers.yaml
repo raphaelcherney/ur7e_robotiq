@@ -10,7 +10,7 @@ robotiq_gripper_controller:
     state_interfaces: [position, velocity]
     goal_tolerance: 0.02
     allow_stalling: true
-    stall_timeout: 0.5
+    stall_timeout: 2.0  # a full open/close stroke takes ~1 s
 
 # Re-activate the gripper (e.g. after a fault) with:
 #   ros2 service call /robotiq_activation_controller/reactivate_gripper std_srvs/srv/Trigger
