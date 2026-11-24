@@ -192,6 +192,7 @@ ros2 run ur7e_robotiq_control check_gripper_comm.py
 | Symptom | Cause / fix |
 | --- | --- |
 | `Package 'ur7e_robotiq_...' not found` | The workspace isn't sourced in this terminal: `source ~/ws/ur/install/setup.bash`. |
+| `No such file or directory: /opt/ros/lyrical/share/robotiq_description/urdf/2f_85.ros2_control.xacro` | This terminal was sourced before the Robotiq packages were built into the workspace, so it finds the older apt `robotiq_description`. Run `source ~/ws/ur/install/setup.bash` again (or open a new terminal). After building **new** packages, always re-source. |
 | Driver log: `socat ... Broken pipe`, `Failed to communicate with the Robotiq gripper`; `check_gripper_comm.py` says *the robot closed the connection immediately* | The forwarder can't open the wrist serial port. Uninstall the **Robotiq Grippers URCapX**, set Tool I/O **Controlled By** to **User**, then **restart the controller** (a restart is required). Also check the forwarder is **Started** in the Application screen. |
 | `check_gripper_comm.py`: *cannot connect* | Forwarder not installed/started, or port 54321 blocked under Inbound Connections. |
 | `check_gripper_comm.py`: *no valid reply* | Tool not powered yet: play `ros_control` once. Then check the gripper cable. |
