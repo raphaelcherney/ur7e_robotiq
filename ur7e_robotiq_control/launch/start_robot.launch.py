@@ -10,8 +10,10 @@ This wraps ur_robot_driver's standard ur_control.launch.py, swapping in our comb
 arm + gripper model, and adds the gripper controllers.
 
 On the real robot the gripper is controlled through the UR wrist connector. That needs the
-Tool Comm Forwarder URCapX installed and enabled on the robot (see README). Use
-use_gripper:=false to run the arm alone.
+Tool Comm Forwarder URCapX installed and started on the robot (see README). The gripper is
+activated when the ros_control program is first played (scripts/gripper_bringup.py); that
+first activation stops the program, so press play again. Use use_gripper:=false to run the
+arm alone.
 """
 
 from launch import LaunchDescription

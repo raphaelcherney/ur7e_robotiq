@@ -116,6 +116,24 @@ On the teach pendant (PolyScope X 10.13):
    for Lyrical fails to connect to PolyScope X; build it from the
    [UR driver source](https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver) if needed.)
 
+### Status (Nov 2026)
+
+Tested on UR7e **20265702158** (PolyScope X 10.13) with the 2F-85: driver connection with its
+calibration, gripper activation and open/close (direct and through MoveIt), arm trajectories,
+and MoveIt planning and execution from RViz.
+
+Known issues / not yet done:
+
+- The first gripper activation after starting the driver stops the `ros_control` program, so
+  you press play twice once. Cause unknown.
+- Starting right after a robot boot (boot → driver → play) hasn't been re-tested since the
+  gripper fixes.
+- UR7e **20265702166** still needs the one-time robot setup below and its calibration file.
+- The `ros_control` program on 20265702158 also has a Script node
+  (`set_tool_voltage(24)`, `set_tool_communication(True, 115200, 0, 1, 1.5, 3.5)`) before the
+  External Control node. It's probably not needed (the driver sets these itself), but that
+  hasn't been checked.
+
 ## Troubleshooting (real robot)
 
 How the gripper connection works: the gripper's RS-485 cable goes through the UR wrist
