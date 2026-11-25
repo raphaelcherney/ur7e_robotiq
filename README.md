@@ -28,22 +28,20 @@ cd ~/ws/ur
 source /opt/ros/lyrical/setup.bash
 rosdep install --from-paths src --ignore-src -y   # installs any missing apt packages
 colcon build --symlink-install
-```
 
-**In every new terminal** (or `Package '...' not found` errors appear):
-
-```bash
-source ~/ws/ur/install/setup.bash
-```
-
-To do this automatically, add it to your `~/.bashrc` after the `/opt/ros/lyrical/setup.bash` line.
-Also keep ROS traffic on this PC: the robot (PolyScope X) runs its own ROS 2 node that otherwise
-shows up in your ROS graph and publishes on `/joint_states` too.
-
-```bash
+# Make every new terminal ready to use (run these two lines once):
 echo "source ~/ws/ur/install/setup.bash" >> ~/.bashrc
 echo "export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST" >> ~/.bashrc
 ```
+
+Then **close all terminals and open new ones**. Every new terminal now loads the workspace
+(without it you get `Package 'ur7e_robotiq_...' not found`). The second line keeps ROS traffic on
+this PC: the robot (PolyScope X) runs its own ROS 2 node that would otherwise show up in your ROS
+graph and publish on `/joint_states` too. All terminals must use the same setting, which is why
+it goes in `~/.bashrc`.
+
+After building **new** packages, open a new terminal (or `source ~/ws/ur/install/setup.bash`
+again) so ROS finds them.
 
 ## MoveIt demo (no robot needed)
 
