@@ -16,13 +16,9 @@ driver isn't released for Lyrical, so it is built from source (listed in `ur7e_r
 
 ## One-time setup
 
-The repository is private: ask to be added as a collaborator, and add an
-[SSH key to your GitHub account](https://docs.github.com/en/authentication/connecting-to-github-with-ssh)
-on the machine you're using.
-
 ```bash
 mkdir -p ~/ws/ur/src && cd ~/ws/ur/src
-git clone git@github.com:raphaelcherney/ur7e_robotiq.git
+git clone https://github.com/raphaelcherney/ur7e_robotiq.git
 vcs import . < ur7e_robotiq/ur7e_robotiq.repos     # Robotiq driver + serial library
 cd ~/ws/ur
 source /opt/ros/lyrical/setup.bash
