@@ -203,6 +203,7 @@ ros2 run ur7e_robotiq_control check_gripper_comm.py
 | `Could not activate the gripper` in the driver log | Fix the cause above, then restart the driver (`robotiq_driver` can't retry after a failed connection). |
 | `/joint_states` has extra joints named `UR<serial>_...` | That's the robot's own ROS 2 node. Set `export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` (see setup). |
 | Driver warns *dashboard server is not available* | Normal on PolyScope X. |
+| Red `Aborting, no controller is switched! (::STRICT switch)` / `Controller stopper: Could not deactivate requested controllers` right after the program stops or starts | Harmless: ur_robot_driver's controller stopper sends each switch twice, and the second finds nothing left to switch. Check `ros2 control list_controllers` if in doubt. |
 | Arm doesn't move, `joint_trajectory_controller` inactive | The robot program isn't running (the driver pauses arm controllers when it stops). Press play, or in headless mode call `/io_and_status_controller/resend_robot_program`. |
 | Headless: *Could not resend the robot program* / nothing happens at startup | The robot isn't in Remote control mode, or isn't powered on with brakes released. |
 | `ur_calibration` keeps reconnecting (*Reconnect called on a socket that is not in LostConnection state*) | Bug in the apt package for Lyrical. Build `ur_calibration` from the UR driver source. |
